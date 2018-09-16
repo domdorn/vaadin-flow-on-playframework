@@ -14,23 +14,26 @@ GET     /message                    controllers.AsyncController.message
 # Map static resources from the /public folder to the /assets URL path
 GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)
 
-GET     /my-vaadin-app/VAADIN/static/*file    controllers.VaadinController.staticResource(file)
-GET     /my-vaadin-app/frontend/bower_components/*file    controllers.VaadinController.webJarResource(file)
-GET     /my-vaadin-app/frontend/*file          controllers.VaadinController.getFE(file)
-
-GET     /my-vaadin-app/favicon.ico            controllers.VaadinController.favIcon
-GET     /favicon.ico            controllers.VaadinController.favIcon
-
-GET     /VAADIN/static/*file    controllers.VaadinController.staticResource(file)
-GET     /frontend/bower_components/*file    controllers.VaadinController.webJarResource(file)
-GET     /frontend/*file          controllers.VaadinController.getFE(file)
+->      /my-vaadin-app/             vaadin.Routes
 
 
-GET     /                           controllers.VaadinController.serveUI(path = "")
-GET     /*file                          controllers.VaadinController.serveUI(file)
 
-+ nocsrf
-POST     /                           controllers.VaadinController.serveUI(path = "")
-+ nocsrf
-POST     /*file                          controllers.VaadinController.serveUI(file)
+
+#GET     /favicon.ico            controllers.VaadinController.favIcon
+
+#GET     /VAADIN/static/*file    controllers.VaadinController.staticResource(file)
+#GET     /frontend/bower_components/*file    controllers.VaadinController.webJarResource(file)
+#GET     /frontend/*file          controllers.VaadinController.getFE(file)
+
+
+
+GET     /ws                     controllers.WebSocketController.ws()
+
+#GET     /                           controllers.VaadinController.serveUI(path = "")
+#GET     /*file                          controllers.VaadinController.serveUI(file)
+
+#+ nocsrf
+#POST     /                           controllers.VaadinController.serveUI(path = "")
+#+ nocsrf
+#POST     /*file                          controllers.VaadinController.serveUI(file)
 

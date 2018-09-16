@@ -1,0 +1,13 @@
+GET     /VAADIN/static/*file                controllers.vaadin.VaadinStaticResourcesController.staticResource(file)
+GET     /frontend/bower_components/*file    controllers.vaadin.VaadinWebJarResourcesController.webJarResource(file)
+GET     /frontend/*file                     controllers.vaadin.VaadinFrontendResourcesController.frontendResource(file)
+GET     /favicon.ico                        controllers.vaadin.VaadinFavIconController.favIcon
+
+GET     /            controllers.vaadin.VaadinUIController.serveUI(path="")
++ nocsrf
+POST     /            controllers.vaadin.VaadinUIController.serveUI(path="")
+
+GET     /*file            controllers.vaadin.VaadinUIController.serveUI(file)
++ nocsrf
+POST     /*file            controllers.vaadin.VaadinUIController.serveUI(file)
+
