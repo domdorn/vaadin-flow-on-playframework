@@ -1,26 +1,25 @@
 package org.vaadin.playintegration
 
 import java.io.InputStream
-import java.net.{MalformedURLException, URL}
+import java.net.URL
 import java.util
 import java.util._
-import scala.collection.JavaConverters
+
 import com.vaadin.flow.component.Component
 import com.vaadin.flow.server._
 import com.vaadin.flow.server.communication._
 import com.vaadin.flow.server.startup.{AbstractRouteRegistryInitializer, RouteRegistry}
 import com.vaadin.flow.server.webjar.WebJarServer
 import com.vaadin.flow.theme.AbstractTheme
-import com.vaadin.starter.beveragebuddy.ui.views.categorieslist.CategoriesList
-import com.vaadin.starter.beveragebuddy.ui.views.reviewslist.ReviewsList
 
-/**
-  * @author Henri Kerola / Vaadin
-  */
-class VaadinPlayService(plugin: VaadinPlayRequestHandler,
-                        deploymentConfiguration: PlayDeploymentConfiguration,
-                        classloader: ClassLoader,
-                        webJarServer: WebJarServer
+import scala.collection.JavaConverters
+
+class VaadinPlayService(
+                         contextRoot: String,
+                         routes: => Seq[Class[_]],
+                         deploymentConfiguration: PlayDeploymentConfiguration,
+                         classloader: ClassLoader,
+                         webJarServer: WebJarServer
                        )
   extends VaadinService(deploymentConfiguration) {
 
@@ -40,7 +39,7 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
 
   //  override def getConfiguredTheme(request: VaadinRequest): String = Constants.DEFAULT_THEME_NAME
 
-//    override def isStandalone(request: VaadinRequest): Boolean = deploymentConfiguration.isStandalone
+  //    override def isStandalone(request: VaadinRequest): Boolean = deploymentConfiguration.isStandalone
 
   override def getMimeType(resourceName: String): String = null // TODO use fileMimeTypes here
 
@@ -78,7 +77,7 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
 
   override def createRequestHandlers: java.util.List[RequestHandler] = {
     val handlers: util.List[RequestHandler] = new util.ArrayList[RequestHandler]
-    handlers.add(0, new PlayBootstrapHandler)
+    handlers.add(0, new PlayBootstrapHandler(contextRoot))
     handlers.add(new VaadinPlayFaviconHandler)
     handlers.add(new SessionRequestHandler)
     handlers.add(new HeartbeatHandler)
@@ -104,12 +103,7 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
         validateRouteClasses(classes)
       }
     }
-    //    val classesStream: stream.Stream[Class[_]] = JavaConverters.asJavaCollection(this.getClass.getClasses).stream()
-    val routesList = new util.ArrayList[Class[_]]()
-    // TODO classpath scanning of classes with @Route or @RouteAlias,
-    // see com.vaadin.flow.server.startup.RouteRegistryInitializer
-    routesList.add(classOf[ReviewsList])
-    routesList.add(classOf[CategoriesList])
+    val routesList = JavaConverters.asJavaCollection(routes)
 
     val classesStream: stream.Stream[Class[_]] = routesList.stream
     val foundRoutes = routeRegistryInitializer.load(classesStream)
@@ -122,17 +116,7 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
   }
 
   override def getMainDivId(session: VaadinSession, request: VaadinRequest): String = {
-    var appId: String = null
-    try {
-      @SuppressWarnings(Array("deprecation"))
-      val appUrl = new URL("https://heise.de/") // TODO this is hardcoded, get it like in the VaadinServletService
-//      val appUrl = new URL("http://localhost:8080/my-vaadin-app/") // TODO this is hardcoded, get it like in the VaadinServletService
-      appId = appUrl.getPath
-    } catch {
-      case e: MalformedURLException =>
-
-      // Just ignore problem here
-    }
+    var appId: String = contextRoot
 
     if (appId == null || "" == appId || "/" == appId) appId = "ROOT"
 
@@ -168,18 +152,15 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
     * @return a URL for the resource or <code>null</code> if no resource was
     *         found
     */
-  private def getResourceInServletContextOrWebJar(path: String): URL = {
+  private def getResourceClassPathOrWebJar(path: String): URL = {
     val bowerComponentsStatic = "/frontend/bower_components/"
-    if(path.startsWith(bowerComponentsStatic)) {
+    if (path.startsWith(bowerComponentsStatic)) {
       val webjarResourceUrl = VaadinResources.getWebjarResourceAsURL(path.substring(bowerComponentsStatic.length))
 
       return webjarResourceUrl.orNull
     }
 
-
-
-
-    if(path.startsWith("/frontend/theme/")) {
+    if (path.startsWith("/frontend/theme/")) {
       val themedResource = Option(this.classloader.getResource(path.substring(1)))
       return themedResource.orNull
     }
@@ -207,33 +188,25 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
     * @return a URL for the resource or <code>null</code> if no resource was
     *         found
     */
-  private def getResourceInServletContextOrWebJarAsStream(path: String): InputStream = {
-    // TODO restructure this, reuse existing methods and make it look like actual scala code
-    //        val servletContext = getServlet.getServletContext
-    //        val stream = servletContext.getResourceAsStream(path)
-    val stream = this.getClass.getClassLoader.getResourceAsStream(path.substring(1))
-    if (stream != null) return stream
-//    println("getResourceInServletContextOrWebjarAsStream.. first stream is null!")
+  private def getResourceInClasspathOrWebJarAsStream(path: String): Option[InputStream] = {
+    val stream = Option(this.getClass.getClassLoader.getResourceAsStream(path.substring(1)))
+    if (stream.isDefined) {
+      return stream
+    }
     import scala.compat.java8.OptionConverters
 
-    val webJarPath : Option[String] = OptionConverters.toScala(getWebJarPath(path))
-    if (webJarPath.isDefined) {
-      val finalWebJarPath : Option[String] = webJarPath.map(s => "META-INF/resources" + s)
-      val newStream = this.getClass.getClassLoader.getResourceAsStream(finalWebJarPath.orNull)
-      if(newStream == null) {
+    val webJarPath: Option[String] = OptionConverters.toScala(getWebJarPath(path))
+    return webJarPath.flatMap(wjp => {
+      val finalWebJarPath: String = "META-INF/resources" + wjp
+      val newStream: Option[InputStream] = Option(this.getClass.getClassLoader.getResourceAsStream(finalWebJarPath))
 
-        val webComponentsPath: Option[String] = finalWebJarPath.map(s => s.replace("webjars", "webjars/@webcomponents"))
-        return webComponentsPath.map(s => this.getClass.getClassLoader.getResourceAsStream(s)).orNull
-      }
-      return newStream
-    }
-    val vaadinResource = "META-INF/resources" + path
-    val vaadinResourceStream = this.getClass.getClassLoader.getResourceAsStream(vaadinResource)
-    if(vaadinResourceStream != null) {
-      return vaadinResourceStream
-    }
-    println("getResourceInServeltContextOrWebjarAsStream.. stream is still null")
-    null
+      return newStream.orElse({
+        val webComponentsPath: String = finalWebJarPath.replace("webjars", "webjars/@webcomponents")
+        Option(this.getClass.getClassLoader.getResourceAsStream(webComponentsPath))
+      })
+    }).orElse({
+      Option(this.getClass.getClassLoader.getResourceAsStream("META-INF/resources" + path))
+    })
   }
 
 
@@ -261,7 +234,7 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
     val resourcePath = resolveResource(url, browser)
     val themeResourcePath = getThemeResourcePath(resourcePath, theme)
     if (themeResourcePath.isPresent) {
-      val themeResource = getResourceInServletContextOrWebJar(themeResourcePath.get)
+      val themeResource = getResourceClassPathOrWebJar(themeResourcePath.get)
       if (themeResource != null) return themeResourcePath.get
     }
     resourcePath
@@ -285,9 +258,9 @@ class VaadinPlayService(plugin: VaadinPlayRequestHandler,
   }
 
 
-  override def getResource(url: String, browser: WebBrowser, theme: AbstractTheme): URL = getResourceInServletContextOrWebJar(getThemedOrRawPath(url, browser, theme))
+  override def getResource(url: String, browser: WebBrowser, theme: AbstractTheme): URL = getResourceClassPathOrWebJar(getThemedOrRawPath(url, browser, theme))
 
-  override def getResourceAsStream(url: String, browser: WebBrowser, theme: AbstractTheme): InputStream = getResourceInServletContextOrWebJarAsStream(getThemedOrRawPath(url, browser, theme))
+  override def getResourceAsStream(url: String, browser: WebBrowser, theme: AbstractTheme): InputStream = getResourceInClasspathOrWebJarAsStream(getThemedOrRawPath(url, browser, theme)).orNull
 
   override def resolveResource(url: String, browser: WebBrowser): String = {
     Objects.requireNonNull(url, "Url cannot be null")

@@ -26,15 +26,21 @@ public class PlayBootstrapHandler extends BootstrapHandler {
     private static final String CAPTION = "caption";
     private static final String MESSAGE = "message";
     private static final String URL = "url";
+    private static final String CONTEXT_ROOT = "play.contextRoot";
+
+    private final String contextRoot;
+
+    public PlayBootstrapHandler(String contextRoot) {
+        this.contextRoot = contextRoot;
+    }
 
     @Override
     protected BootstrapContext createAndInitUI(Class<? extends UI> uiClass,
                                                VaadinRequest request, VaadinResponse response,
                                                VaadinSession session) {
         UI ui = ReflectTools.createInstance(uiClass);
-        ui.getInternals().setContextRoot("/my-vaadin-app/"); // TODO!
-//        ui.getInternals().setContextRoot(
-//                ServletHelper.getContextRootRelativePath(request) + "/");
+        request.setAttribute(CONTEXT_ROOT, contextRoot);
+        ui.getInternals().setContextRoot(contextRoot + "/");
 
         PushConfiguration pushConfiguration = ui.getPushConfiguration();
 
@@ -122,10 +128,7 @@ public class PlayBootstrapHandler extends BootstrapHandler {
             appConfig.put("sessExpMsg", sessExpMsg);
         }
 
-//        String contextRoot = ServletHelper.getContextRootRelativePath(request)
-//                + "/";
-        String contextRoot = "/my-vaadin-app/"; // TODO
-        appConfig.put(ApplicationConstants.CONTEXT_ROOT_URL, contextRoot);
+        appConfig.put(ApplicationConstants.CONTEXT_ROOT_URL, String.valueOf(request.getAttribute(CONTEXT_ROOT) + "/"));
 
         if (!productionMode) {
             appConfig.put("debug", true);
